@@ -423,18 +423,44 @@ document.getElementById('saveAppointmentBtn')?.addEventListener('click', async (
         return;
     }
     
-    const appointmentData = {
-        patientId: patientId,
-        patientName: patient.name,
-        patientPhone: patient.phone || '',
-        date: document.getElementById('appointmentDate').value,
-        time: document.getElementById('appointmentTime').value,
-        reason: document.getElementById('appointmentReason').value.trim(),
-        status: document.getElementById('appointmentStatus').value,
-        doctorId: auth.currentUser.uid,
-        createdAt: editingAppointmentId ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
+    // Prepare appointment data - build differently for create vs update
+    let appointmentData;
+    
+    if (editingAppointmentId) {
+        // UPDATE: Don't include createdAt
+        appointmentData = {
+            patientId: patientId,
+            patientName: patient.name,
+            patientPhone: patient.phone || '',
+            date: document.getElementById('appointmentDate').value,
+            time: document.getElementById('appointmentTime').value,
+            reason: document.getElementById('appointmentReason').value.trim(),
+            status: document.getElementById('appointmentStatus').value,
+            doctorId: auth.currentUser.uid,
+            updatedAt: new Date().toISOString()
+        };
+    } else {
+        // CREATE: Include createdAt
+        appointmentData = {
+            patientId: patientId,
+            patientName: patient.name,
+            patientPhone: patient.phone || '',
+            date: document.getElementById('appointmentDate').value,
+            time: document.getElementById('appointmentTime').value,
+            reason: document.getElementById('appointmentReason').value.trim(),
+            status: document.getElementById('appointmentStatus').value,
+            doctorId: auth.currentUser.uid,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
+    
+    // Remove any undefined values (safety check)
+    Object.keys(appointmentData).forEach(key => {
+        if (appointmentData[key] === undefined) {
+            delete appointmentData[key];
+        }
+    });
     
     try {
         if (editingAppointmentId) {
@@ -449,7 +475,10 @@ document.getElementById('saveAppointmentBtn')?.addEventListener('click', async (
         loadAppointments();
     } catch (error) {
         console.error('Error saving appointment:', error);
-        alert('Error saving appointment. Please try again.');
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Appointment data that failed:', JSON.stringify(appointmentData, null, 2));
+        alert(`Error saving appointment: ${error.message || 'Please check the console for details'}`);
     }
 });
 

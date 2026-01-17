@@ -179,18 +179,44 @@ document.getElementById('savePatientBtn')?.addEventListener('click', async () =>
         return;
     }
     
-    const patientData = {
-        name: document.getElementById('patientName').value.trim(),
-        age: parseInt(document.getElementById('patientAge').value),
-        gender: document.getElementById('patientGender').value,
-        phone: document.getElementById('patientPhone').value.trim(),
-        email: document.getElementById('patientEmail').value.trim(),
-        address: document.getElementById('patientAddress').value.trim(),
-        medicalHistory: document.getElementById('patientMedicalHistory').value.trim(),
-        doctorId: auth.currentUser.uid,
-        createdAt: editingPatientId ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
+    // Prepare patient data - build differently for create vs update
+    let patientData;
+    
+    if (editingPatientId) {
+        // UPDATE: Don't include createdAt
+        patientData = {
+            name: document.getElementById('patientName').value.trim(),
+            age: parseInt(document.getElementById('patientAge').value),
+            gender: document.getElementById('patientGender').value,
+            phone: document.getElementById('patientPhone').value.trim(),
+            email: document.getElementById('patientEmail').value.trim(),
+            address: document.getElementById('patientAddress').value.trim(),
+            medicalHistory: document.getElementById('patientMedicalHistory').value.trim(),
+            doctorId: auth.currentUser.uid,
+            updatedAt: new Date().toISOString()
+        };
+    } else {
+        // CREATE: Include createdAt
+        patientData = {
+            name: document.getElementById('patientName').value.trim(),
+            age: parseInt(document.getElementById('patientAge').value),
+            gender: document.getElementById('patientGender').value,
+            phone: document.getElementById('patientPhone').value.trim(),
+            email: document.getElementById('patientEmail').value.trim(),
+            address: document.getElementById('patientAddress').value.trim(),
+            medicalHistory: document.getElementById('patientMedicalHistory').value.trim(),
+            doctorId: auth.currentUser.uid,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
+    
+    // Remove any undefined values (safety check)
+    Object.keys(patientData).forEach(key => {
+        if (patientData[key] === undefined) {
+            delete patientData[key];
+        }
+    });
     
     try {
         if (editingPatientId) {
