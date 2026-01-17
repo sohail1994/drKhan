@@ -49,14 +49,13 @@ document.getElementById('logoutBtn')?.addEventListener('click', async (e) => {
     }
 });
 
-// Load patients for dropdown
+// Load patients for autocomplete
 async function loadPatients() {
     try {
         const userId = auth.currentUser.uid;
         const patientsQuery = query(
             collection(db, 'patients'),
-            where('doctorId', '==', userId),
-            orderBy('name', 'asc')
+            where('doctorId', '==', userId)
         );
         
         const snapshot = await getDocs(patientsQuery);
@@ -65,17 +64,125 @@ async function loadPatients() {
             patients.push({ id: doc.id, ...doc.data() });
         });
         
-        const select = document.getElementById('appointmentPatient');
-        select.innerHTML = '<option value="">Select Patient</option>';
-        patients.forEach(patient => {
-            const option = document.createElement('option');
-            option.value = patient.id;
-            option.textContent = patient.name;
-            select.appendChild(option);
+        // Sort by name
+        patients.sort((a, b) => {
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
         });
+        
+        // Setup autocomplete for appointment patient
+        setupAutocomplete('appointmentPatient', 'appointmentPatientId', 'appointmentPatientSuggestions');
     } catch (error) {
         console.error('Error loading patients:', error);
     }
+}
+
+// Setup autocomplete functionality
+function setupAutocomplete(inputId, hiddenId, suggestionsId) {
+    const input = document.getElementById(inputId);
+    const hidden = document.getElementById(hiddenId);
+    const suggestions = document.getElementById(suggestionsId);
+    let selectedIndex = -1;
+    
+    if (!input || !hidden || !suggestions) return;
+    
+    input.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase().trim();
+        hidden.value = '';
+        selectedIndex = -1;
+        
+        if (searchTerm === '') {
+            suggestions.classList.remove('show');
+            return;
+        }
+        
+        // Filter patients
+        const filtered = patients.filter(patient => 
+            patient.name?.toLowerCase().includes(searchTerm) ||
+            patient.phone?.includes(searchTerm) ||
+            patient.email?.toLowerCase().includes(searchTerm)
+        );
+        
+        if (filtered.length === 0) {
+            suggestions.innerHTML = '<div class="autocomplete-suggestion">No patients found</div>';
+            suggestions.classList.add('show');
+            return;
+        }
+        
+        // Display suggestions
+        suggestions.innerHTML = '';
+        filtered.forEach((patient, index) => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-suggestion';
+            div.innerHTML = `
+                <div class="patient-name">${patient.name || 'N/A'}</div>
+                <div class="patient-info">Age: ${patient.age || 'N/A'} | Phone: ${patient.phone || 'N/A'}</div>
+            `;
+            div.addEventListener('click', () => {
+                selectPatient(patient, input, hidden, suggestions);
+            });
+            div.addEventListener('mouseenter', () => {
+                selectedIndex = index;
+                updateSelection();
+            });
+            suggestions.appendChild(div);
+        });
+        
+        suggestions.classList.add('show');
+    });
+    
+    input.addEventListener('keydown', (e) => {
+        const visibleSuggestions = suggestions.querySelectorAll('.autocomplete-suggestion');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, visibleSuggestions.length - 1);
+            updateSelection();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, -1);
+            updateSelection();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedIndex >= 0 && visibleSuggestions[selectedIndex]) {
+                const patient = patients.find(p => 
+                    p.name?.toLowerCase().includes(input.value.toLowerCase())
+                );
+                if (patient) {
+                    selectPatient(patient, input, hidden, suggestions);
+                }
+            }
+        } else if (e.key === 'Escape') {
+            suggestions.classList.remove('show');
+        }
+    });
+    
+    function updateSelection() {
+        const visibleSuggestions = suggestions.querySelectorAll('.autocomplete-suggestion');
+        visibleSuggestions.forEach((item, index) => {
+            if (index === selectedIndex) {
+                item.classList.add('selected');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('selected');
+            }
+        });
+    }
+    
+    // Close suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+            suggestions.classList.remove('show');
+        }
+    });
+}
+
+function selectPatient(patient, input, hidden, suggestions) {
+    input.value = patient.name;
+    hidden.value = patient.id;
+    suggestions.classList.remove('show');
+    selectedIndex = -1;
 }
 
 // Load appointments
@@ -84,15 +191,21 @@ async function loadAppointments() {
         const userId = auth.currentUser.uid;
         const appointmentsQuery = query(
             collection(db, 'appointments'),
-            where('doctorId', '==', userId),
-            orderBy('date', 'desc'),
-            orderBy('time', 'desc')
+            where('doctorId', '==', userId)
         );
         
         const snapshot = await getDocs(appointmentsQuery);
         appointments = [];
         snapshot.forEach((doc) => {
             appointments.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Sort by date and time (descending - most recent first)
+        appointments.sort((a, b) => {
+            if (a.date !== b.date) {
+                return b.date.localeCompare(a.date); // Descending
+            }
+            return b.time.localeCompare(a.time); // Descending
         });
         
         displayAppointments(appointments);
@@ -248,7 +361,14 @@ window.editAppointment = function(appointmentId) {
     
     editingAppointmentId = appointmentId;
     document.getElementById('appointmentId').value = appointmentId;
-    document.getElementById('appointmentPatient').value = appointment.patientId;
+    
+    // Set autocomplete values
+    const patient = patients.find(p => p.id === appointment.patientId);
+    if (patient) {
+        document.getElementById('appointmentPatient').value = patient.name;
+        document.getElementById('appointmentPatientId').value = patient.id;
+    }
+    
     document.getElementById('appointmentDate').value = appointment.date;
     document.getElementById('appointmentTime').value = appointment.time;
     document.getElementById('appointmentReason').value = appointment.reason || '';
@@ -276,12 +396,16 @@ document.getElementById('addAppointmentBtn')?.addEventListener('click', () => {
     editingAppointmentId = null;
     document.getElementById('appointmentForm').reset();
     document.getElementById('appointmentId').value = '';
+    document.getElementById('appointmentPatientId').value = '';
     document.getElementById('appointmentStatus').value = 'Scheduled';
     document.getElementById('appointmentModalTitle').textContent = 'New Appointment';
     
     // Set today's date as default
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('appointmentDate').value = today;
+    
+    // Hide suggestions
+    document.getElementById('appointmentPatientSuggestions').classList.remove('show');
 });
 
 document.getElementById('saveAppointmentBtn')?.addEventListener('click', async () => {
@@ -291,11 +415,11 @@ document.getElementById('saveAppointmentBtn')?.addEventListener('click', async (
         return;
     }
     
-    const patientId = document.getElementById('appointmentPatient').value;
+    const patientId = document.getElementById('appointmentPatientId').value;
     const patient = patients.find(p => p.id === patientId);
     
-    if (!patient) {
-        alert('Please select a patient');
+    if (!patient || !patientId) {
+        alert('Please select a patient from the list');
         return;
     }
     

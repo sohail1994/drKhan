@@ -156,9 +156,11 @@
                         
                         <div class="mb-3">
                             <label for="followupPatient" class="form-label">Patient *</label>
-                            <select class="form-select" id="followupPatient" required>
-                                <option value="">Select Patient</option>
-                            </select>
+                            <div class="autocomplete-wrapper">
+                                <input type="text" class="form-control" id="followupPatient" placeholder="Type patient name..." autocomplete="off" required>
+                                <input type="hidden" id="followupPatientId">
+                                <div id="followupPatientSuggestions" class="autocomplete-suggestions"></div>
+                            </div>
                         </div>
                         
                         <div class="mb-3">

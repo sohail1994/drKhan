@@ -171,9 +171,11 @@
                         
                         <div class="mb-3">
                             <label for="appointmentPatient" class="form-label">Patient *</label>
-                            <select class="form-select" id="appointmentPatient" required>
-                                <option value="">Select Patient</option>
-                            </select>
+                            <div class="autocomplete-wrapper">
+                                <input type="text" class="form-control" id="appointmentPatient" placeholder="Type patient name..." autocomplete="off" required>
+                                <input type="hidden" id="appointmentPatientId">
+                                <div id="appointmentPatientSuggestions" class="autocomplete-suggestions"></div>
+                            </div>
                         </div>
                         
                         <div class="row">
