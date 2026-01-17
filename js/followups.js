@@ -407,17 +407,45 @@ document.getElementById('saveFollowupBtn')?.addEventListener('click', async () =
         return;
     }
     
-    const followupData = {
-        patientId: patientId,
-        patientName: patient.name,
-        patientPhone: patient.phone || '',
-        date: document.getElementById('followupDate').value,
-        notes: document.getElementById('followupNotes').value.trim(),
-        status: document.getElementById('followupStatus').value,
-        doctorId: auth.currentUser.uid,
-        createdAt: editingFollowupId ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
+    // Prepare follow-up data - build differently for create vs update
+    let followupData;
+    
+    if (editingFollowupId) {
+        // UPDATE: Don't include createdAt
+        followupData = {
+            patientId: patientId,
+            patientName: patient.name,
+            patientPhone: patient.phone || '',
+            date: document.getElementById('followupDate').value,
+            notes: document.getElementById('followupNotes').value.trim(),
+            status: document.getElementById('followupStatus').value,
+            doctorId: auth.currentUser.uid,
+            updatedAt: new Date().toISOString()
+        };
+    } else {
+        // CREATE: Include createdAt
+        followupData = {
+            patientId: patientId,
+            patientName: patient.name,
+            patientPhone: patient.phone || '',
+            date: document.getElementById('followupDate').value,
+            notes: document.getElementById('followupNotes').value.trim(),
+            status: document.getElementById('followupStatus').value,
+            doctorId: auth.currentUser.uid,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
+    
+    // Remove any undefined values (safety check)
+    Object.keys(followupData).forEach(key => {
+        if (followupData[key] === undefined) {
+            delete followupData[key];
+        }
+    });
+    
+    console.log('Saving follow-up - editingFollowupId:', editingFollowupId);
+    console.log('Follow-up data:', JSON.stringify(followupData, null, 2));
     
     try {
         if (editingFollowupId) {
@@ -432,7 +460,10 @@ document.getElementById('saveFollowupBtn')?.addEventListener('click', async () =
         loadFollowups();
     } catch (error) {
         console.error('Error saving follow-up:', error);
-        alert('Error saving follow-up. Please try again.');
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Follow-up data that failed:', followupData);
+        alert(`Error saving follow-up: ${error.message || 'Please check the console for details'}`);
     }
 });
 
