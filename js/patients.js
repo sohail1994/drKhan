@@ -23,6 +23,7 @@ onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.href = 'index.html';
     } else {
+        console.log("-----------------------------0");
         loadUserInfo();
         loadPatients();
     }
@@ -50,24 +51,50 @@ document.getElementById('logoutBtn')?.addEventListener('click', async (e) => {
 // Load patients from Firestore
 async function loadPatients() {
     try {
+        console.log("-----------------------------1");
         const userId = auth.currentUser.uid;
+        
+        // NOTE: Removed orderBy to avoid index requirement - sorting happens in JavaScript instead
         const patientsQuery = query(
             collection(db, 'patients'),
-            where('doctorId', '==', userId),
-            orderBy('name', 'asc')
+            where('doctorId', '==', userId)
+            // orderBy removed - requires composite index. Sorting done in JavaScript below.
         );
         
+        console.log("-----------------------------2");
         const snapshot = await getDocs(patientsQuery);
+        
         patients = [];
         snapshot.forEach((doc) => {
             patients.push({ id: doc.id, ...doc.data() });
         });
         
+        // Sort by name in JavaScript (no index required)
+        patients.sort((a, b) => {
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+        });
+        
+        console.log('Loaded and sorted', patients.length, 'patients');
         displayPatients(patients);
     } catch (error) {
         console.error('Error loading patients:', error);
-        document.getElementById('patientsTable').innerHTML = 
-            '<tr><td colspan="7" class="text-center text-danger">Error loading patients</td></tr>';
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        const tableBody = document.getElementById('patientsTable');
+        if (tableBody) {
+            let errorMsg = 'Error loading patients';
+            if (error.code === 'permission-denied') {
+                errorMsg = 'Permission denied. Check Firestore security rules.';
+            } else if (error.code === 'unavailable') {
+                errorMsg = 'Cannot connect to Firestore. Check your connection.';
+            }
+            
+            tableBody.innerHTML = 
+                `<tr><td colspan="7" class="text-center text-danger">${errorMsg}</td></tr>`;
+        }
     }
 }
 
